@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -6,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { motion } from "framer-motion";
 import { ArrowRight, Maximize2, Play, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import VideoPlayer from "@/components/video/VideoPlayer";
 
 interface ComparisonViewerProps {
   userVideoUrl: string;
@@ -135,28 +135,30 @@ const ComparisonViewer = ({
         </div>
         
         <TabsContent value="side-by-side" className="mt-0">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 p-4 max-w-[1200px] mx-auto">
             <div className="space-y-2">
               <p className="text-sm font-medium">Your Performance</p>
-              <div className="relative overflow-hidden rounded-lg border bg-card">
-                <video 
-                  id="user-video"
-                  src={userVideoUrl} 
-                  controls 
-                  className="w-full h-full" 
-                />
+              <div className="rounded-lg border bg-card">
+                <div className="aspect-video">
+                  <VideoPlayer
+                    id="user-video"
+                    src={userVideoUrl}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
             </div>
             
             <div className="space-y-2">
               <p className="text-sm font-medium">Reference Performance</p>
-              <div className="relative overflow-hidden rounded-lg border bg-card">
-                <video 
-                  id="reference-video"
-                  src={referenceVideoUrl} 
-                  controls 
-                  className="w-full h-full" 
-                />
+              <div className="rounded-lg border bg-card">
+                <div className="aspect-video">
+                  <VideoPlayer
+                    id="reference-video"
+                    src={referenceVideoUrl}
+                    className="w-full h-full object-contain"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -234,7 +236,7 @@ const ComparisonViewer = ({
             ) : (
               <div className="py-12 text-center">
                 <div className="inline-block p-3 rounded-full bg-primary/10 mb-4">
-                  <BarChart3 className="h-6 w-6 text-primary" />
+                  <BarChart3 className="h-6 w-6 text-primary animate-pulse" />
                 </div>
                 <h3 className="text-lg font-medium mb-2">Analysis in Progress</h3>
                 <p className="text-muted-foreground max-w-md mx-auto">

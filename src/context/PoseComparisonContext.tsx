@@ -1,5 +1,4 @@
-
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 
 interface VideoData {
   file: File | null;
@@ -55,10 +54,16 @@ export const PoseComparisonProvider = ({ children }: { children: ReactNode }) =>
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const setUserVideo = (data: Partial<VideoData>) => {
+    if (userVideo.url && data.url && data.url !== userVideo.url) {
+      URL.revokeObjectURL(userVideo.url);
+    }
     setUserVideoState(prev => ({ ...prev, ...data }));
   };
 
   const setReferenceVideo = (data: Partial<VideoData>) => {
+    if (referenceVideo.url && data.url && data.url !== referenceVideo.url) {
+      URL.revokeObjectURL(referenceVideo.url);
+    }
     setReferenceVideoState(prev => ({ ...prev, ...data }));
   };
 
@@ -117,6 +122,17 @@ export const PoseComparisonProvider = ({ children }: { children: ReactNode }) =>
     setIsAnalyzing(false);
     setAnalysisProgress(0);
   };
+
+  useEffect(() => {
+    return () => {
+      if (userVideo.url) {
+        URL.revokeObjectURL(userVideo.url);
+      }
+      if (referenceVideo.url) {
+        URL.revokeObjectURL(referenceVideo.url);
+      }
+    };
+  }, []);
 
   return (
     <PoseComparisonContext.Provider

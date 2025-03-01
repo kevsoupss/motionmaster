@@ -2,6 +2,7 @@ import PageContainer from "@/components/layout/PageContainer";
 import { Button } from "@/components/ui/button";
 import BoundingBoxSelector from "@/components/video/BoundingBoxSelector";
 import VideoUpload from "@/components/video/VideoUpload";
+import VideoPlayer from "@/components/video/VideoPlayer";
 import { usePoseComparison } from "@/context/PoseComparisonContext";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
@@ -20,10 +21,12 @@ const Upload = () => {
 
   const handleUserVideoSelected = (file: File, url: string) => {
     setUserVideo({ file, url });
+    setStep(2);
   };
 
   const handleReferenceVideoSelected = (file: File, url: string) => {
     setReferenceVideo({ file, url });
+    setStep(4);
   };
 
   const handleUserSelectionComplete = (selection: { x: number, y: number, width: number, height: number }) => {
@@ -188,27 +191,29 @@ const Upload = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <p className="text-sm font-medium">Your Performance</p>
-                <div className="aspect-video bg-muted rounded-lg overflow-hidden border">
-                  {userVideo.url && (
-                    <video 
-                      src={userVideo.url} 
-                      controls 
-                      className="w-full h-full object-contain" 
-                    />
-                  )}
+                <div className="rounded-lg border bg-card">
+                  <div className="aspect-video">
+                    {userVideo.url && (
+                      <VideoPlayer
+                        src={userVideo.url}
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
               
               <div className="space-y-2">
                 <p className="text-sm font-medium">Reference Performance</p>
-                <div className="aspect-video bg-muted rounded-lg overflow-hidden border">
-                  {referenceVideo.url && (
-                    <video 
-                      src={referenceVideo.url} 
-                      controls 
-                      className="w-full h-full object-contain" 
-                    />
-                  )}
+                <div className="rounded-lg border bg-card">
+                  <div className="aspect-video">
+                    {referenceVideo.url && (
+                      <VideoPlayer
+                        src={referenceVideo.url}
+                        className="w-full h-full object-contain"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1,9 +1,8 @@
-
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Check, RotateCcw } from "lucide-react";
-import { motion } from "framer-motion";
+import VideoPlayer from "./VideoPlayer";
 
 interface BoundingBoxSelectorProps {
   videoUrl: string;
@@ -12,221 +11,194 @@ interface BoundingBoxSelectorProps {
 
 const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelectorProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState({ x: 0, y: 0 });
   const [endPoint, setEndPoint] = useState({ x: 0, y: 0 });
   const [selection, setSelection] = useState<{ x: number, y: number, width: number, height: number } | null>(null);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
   const [videoLoaded, setVideoLoaded] = useState(false);
-  
-  useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.onloadedmetadata = () => {
-        const video = videoRef.current!;
-        const aspectRatio = video.videoWidth / video.videoHeight;
-        
-        let width = video.offsetWidth;
-        let height = width / aspectRatio;
-        
-        // If height is too large for the container, scale down
-        const maxHeight = 400;
-        if (height > maxHeight) {
-          height = maxHeight;
-          width = height * aspectRatio;
-        }
-        
-        setVideoSize({ width, height });
-        
-        if (canvasRef.current) {
-          canvasRef.current.width = width;
-          canvasRef.current.height = height;
-        }
-        
-        setVideoLoaded(true);
-      };
-    }
-  }, [videoUrl]);
 
-  useEffect(() => {
-    if (selection && canvasRef.current) {
-      const ctx = canvasRef.current.getContext('2d');
-      if (ctx) {
-        drawCanvas(ctx);
-      }
+  const drawCanvas = useCallback((ctx: CanvasRenderingContext2D, drawSelection?: { x: number, y: number, width: number, height: number }) => {
+    if (!canvasRef.current) return;
+    
+    const { width, height } = canvasRef.current;
+    ctx.clearRect(0, 0, width, height);
+    
+    const selectionToDraw = drawSelection || selection;
+    if (selectionToDraw) {
+      // Draw semi-transparent overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+      ctx.fillRect(0, 0, width, height);
+      
+      // Clear the selection area
+      ctx.clearRect(
+        selectionToDraw.x,
+        selectionToDraw.y,
+        selectionToDraw.width,
+        selectionToDraw.height
+      );
+      
+      // Draw border around selection
+      ctx.strokeStyle = '#3b82f6';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(
+        selectionToDraw.x,
+        selectionToDraw.y,
+        selectionToDraw.width,
+        selectionToDraw.height
+      );
     }
   }, [selection]);
 
-  const drawCanvas = (ctx: CanvasRenderingContext2D) => {
-    ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+  const handleVideoLoad = useCallback(() => {
+    // Wait a short moment to ensure video dimensions are available
+    setTimeout(() => {
+      const video = document.querySelector('video');
+      if (!video || !containerRef.current) {
+        console.log('Video or container not found');
+        return;
+      }
+
+      console.log('Video dimensions:', {
+        videoWidth: video.videoWidth,
+        videoHeight: video.videoHeight,
+        naturalWidth: (video as any).naturalWidth,
+        naturalHeight: (video as any).naturalHeight,
+        offsetWidth: video.offsetWidth,
+        offsetHeight: video.offsetHeight
+      });
+
+      // Wait for video dimensions to be available
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        console.log('Video dimensions not yet available');
+        return;
+      }
+
+      const containerWidth = containerRef.current.offsetWidth;
+      const aspectRatio = video.videoWidth / video.videoHeight;
+      
+      let width = containerWidth;
+      let height = width / aspectRatio;
+      
+      const maxHeight = 400;
+      if (height > maxHeight) {
+        height = maxHeight;
+        width = height * aspectRatio;
+      }
+      
+      if (canvasRef.current) {
+        canvasRef.current.width = width;
+        canvasRef.current.height = height;
+        const ctx = canvasRef.current.getContext('2d');
+        if (ctx) {
+          // Clear any existing content
+          ctx.clearRect(0, 0, width, height);
+          if (selection) {
+            drawCanvas(ctx);
+          }
+        }
+      }
+      
+      setVideoSize({ width, height });
+      setVideoLoaded(true);
+    }, 100); // Small delay to ensure video is ready
+  }, [selection, drawCanvas]);
+
+  // Add effect to handle video loading
+  useEffect(() => {
+    const video = document.querySelector('video');
+    if (!video) return;
+
+    const handleLoadedData = () => {
+      console.log('Video data loaded');
+      handleVideoLoad();
+    };
+
+    video.addEventListener('loadeddata', handleLoadedData);
     
-    if (selection) {
-      // Draw semi-transparent overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      
-      // Clear the selection area
-      ctx.clearRect(selection.x, selection.y, selection.width, selection.height);
-      
-      // Draw border around selection
-      ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(selection.x, selection.y, selection.width, selection.height);
-      
-      // Draw corner handles
-      const handleSize = 8;
-      ctx.fillStyle = 'white';
-      
-      // Top-left
-      ctx.fillRect(selection.x - handleSize/2, selection.y - handleSize/2, handleSize, handleSize);
-      // Top-right
-      ctx.fillRect(selection.x + selection.width - handleSize/2, selection.y - handleSize/2, handleSize, handleSize);
-      // Bottom-left
-      ctx.fillRect(selection.x - handleSize/2, selection.y + selection.height - handleSize/2, handleSize, handleSize);
-      // Bottom-right
-      ctx.fillRect(selection.x + selection.width - handleSize/2, selection.y + selection.height - handleSize/2, handleSize, handleSize);
+    // Also try to initialize if video is already loaded
+    if (video.readyState >= 2) {
+      handleVideoLoad();
     }
+
+    return () => {
+      video.removeEventListener('loadeddata', handleLoadedData);
+    };
+  }, [handleVideoLoad]);
+
+  const getCanvasPoint = (e: MouseEvent | React.Touch) => {
+    if (!canvasRef.current) return { x: 0, y: 0 };
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    
+    const x = (clientX - rect.left) * (canvasRef.current.width / rect.width);
+    const y = (clientY - rect.top) * (canvasRef.current.height / rect.height);
+    
+    return {
+      x: Math.max(0, Math.min(x, canvasRef.current.width)),
+      y: Math.max(0, Math.min(y, canvasRef.current.height))
+    };
   };
 
-  const handleMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleStart = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     setIsDrawing(true);
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setStartPoint({ x, y });
-    setEndPoint({ x, y });
+    const point = getCanvasPoint('touches' in e ? e.touches[0] : e.nativeEvent);
+    setStartPoint(point);
+    setEndPoint(point);
+    setSelection(null);
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing) return;
+  const handleMove = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!isDrawing || !canvasRef.current) return;
     
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setEndPoint({ x, y });
+    const point = getCanvasPoint('touches' in e ? e.touches[0] : e.nativeEvent);
+    setEndPoint(point);
     
-    const ctx = canvasRef.current!.getContext('2d');
+    const ctx = canvasRef.current.getContext('2d');
     if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+      const width = Math.abs(startPoint.x - point.x);
+      const height = Math.abs(startPoint.y - point.y);
+      const x = Math.min(startPoint.x, point.x);
+      const y = Math.min(startPoint.y, point.y);
       
-      // Calculate box coordinates
-      const width = Math.abs(startPoint.x - x);
-      const height = Math.abs(startPoint.y - y);
-      const boxX = Math.min(startPoint.x, x);
-      const boxY = Math.min(startPoint.y, y);
-      
-      // Draw semi-transparent overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      
-      // Clear the selection area
-      ctx.clearRect(boxX, boxY, width, height);
-      
-      // Draw border around selection
-      ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(boxX, boxY, width, height);
+      drawCanvas(ctx, { x, y, width, height });
     }
   };
 
-  const handleMouseUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const handleEnd = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
     if (!isDrawing) return;
     
     setIsDrawing(false);
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    const point = getCanvasPoint('changedTouches' in e ? e.changedTouches[0] : e.nativeEvent);
     
-    // Calculate box coordinates
-    const width = Math.abs(startPoint.x - x);
-    const height = Math.abs(startPoint.y - y);
-    const boxX = Math.min(startPoint.x, x);
-    const boxY = Math.min(startPoint.y, y);
+    const width = Math.abs(startPoint.x - point.x);
+    const height = Math.abs(startPoint.y - point.y);
     
-    // Only set selection if it has sufficient size
     if (width > 20 && height > 20) {
-      const newSelection = {
-        x: boxX,
-        y: boxY,
-        width: width,
-        height: height
-      };
+      const x = Math.min(startPoint.x, point.x);
+      const y = Math.min(startPoint.y, point.y);
+      const selection = { x, y, width, height };
       
-      setSelection(newSelection);
-    }
-  };
-
-  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    setIsDrawing(true);
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    setStartPoint({ x, y });
-    setEndPoint({ x, y });
-  };
-
-  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-    
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const touch = e.touches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    setEndPoint({ x, y });
-    
-    const ctx = canvasRef.current!.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
+      // Log the selection dimensions
+      console.log('📦 Bounding Box Selected:', {
+        x: Math.round(x),
+        y: Math.round(y),
+        width: Math.round(width),
+        height: Math.round(height),
+        aspectRatio: (width / height).toFixed(2),
+        area: Math.round(width * height)
+      });
       
-      // Calculate box coordinates
-      const width = Math.abs(startPoint.x - x);
-      const height = Math.abs(startPoint.y - y);
-      const boxX = Math.min(startPoint.x, x);
-      const boxY = Math.min(startPoint.y, y);
-      
-      // Draw semi-transparent overlay
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-      ctx.fillRect(0, 0, canvasRef.current!.width, canvasRef.current!.height);
-      
-      // Clear the selection area
-      ctx.clearRect(boxX, boxY, width, height);
-      
-      // Draw border around selection
-      ctx.strokeStyle = 'rgba(59, 130, 246, 1)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(boxX, boxY, width, height);
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
-    e.preventDefault();
-    if (!isDrawing) return;
-    
-    setIsDrawing(false);
-    const rect = canvasRef.current!.getBoundingClientRect();
-    const touch = e.changedTouches[0];
-    const x = touch.clientX - rect.left;
-    const y = touch.clientY - rect.top;
-    
-    // Calculate box coordinates
-    const width = Math.abs(startPoint.x - x);
-    const height = Math.abs(startPoint.y - y);
-    const boxX = Math.min(startPoint.x, x);
-    const boxY = Math.min(startPoint.y, y);
-    
-    // Only set selection if it has sufficient size
-    if (width > 20 && height > 20) {
-      const newSelection = {
-        x: boxX,
-        y: boxY,
-        width: width,
-        height: height
-      };
-      
-      setSelection(newSelection);
+      setSelection(selection);
     }
   };
 
@@ -242,6 +214,16 @@ const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelec
 
   const confirmSelection = () => {
     if (selection) {
+      // Log the confirmed selection
+      console.log('✅ Selection Confirmed:', {
+        x: Math.round(selection.x),
+        y: Math.round(selection.y),
+        width: Math.round(selection.width),
+        height: Math.round(selection.height),
+        aspectRatio: (selection.width / selection.height).toFixed(2),
+        area: Math.round(selection.width * selection.height)
+      });
+      
       onSelectionComplete(selection);
     }
   };
@@ -254,29 +236,30 @@ const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelec
           Draw a box around the person in the video
         </p>
       </div>
-      <div className="relative">
-        <video 
-          ref={videoRef}
+      <div className="relative" ref={containerRef}>
+        <VideoPlayer
           src={videoUrl}
           className="w-full max-h-[400px] object-contain"
-          controls
-          style={{ display: 'block' }}
+          onLoad={handleVideoLoad}
+          controls={true}
+          muted={true}
         />
         {videoLoaded && (
           <canvas
             ref={canvasRef}
-            className="absolute top-0 left-0 cursor-crosshair touch-none"
-            onMouseDown={handleMouseDown}
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
+            className="absolute top-0 cursor-crosshair touch-none"
+            onMouseDown={handleStart}
+            onMouseMove={handleMove}
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+            onTouchStart={handleStart}
+            onTouchMove={handleMove}
+            onTouchEnd={handleEnd}
             style={{
               width: videoSize.width,
               height: videoSize.height,
-              left: `calc(50% - ${videoSize.width / 2}px)`
+              left: `calc(50% - ${videoSize.width / 2}px)`,
+              pointerEvents: 'auto'
             }}
           />
         )}

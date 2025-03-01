@@ -1,10 +1,10 @@
-
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Upload, Camera, X } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { motion } from "framer-motion";
+import VideoPlayer from "./VideoPlayer";
 
 interface VideoUploadProps {
   onVideoSelected: (file: File, url: string) => void;
@@ -12,6 +12,14 @@ interface VideoUploadProps {
   allowCamera?: boolean;
   className?: string;
 }
+
+const VALID_VIDEO_TYPES = [
+  'video/mp4',
+  'video/quicktime',  // MOV files
+  'video/webm',
+  'video/x-msvideo',  // AVI files
+  'video/x-m4v'       // M4V files
+];
 
 const VideoUpload = ({ 
   onVideoSelected, 
@@ -22,12 +30,25 @@ const VideoUpload = ({
   const [dragActive, setDragActive] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const { toast } = useToast();
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [previewUrl]);
 
   const handleDrag = (e: React.DragEvent) => {
     e.preventDefault();
@@ -50,19 +71,146 @@ const VideoUpload = ({
     }
   };
 
-  const handleFileSelection = (file: File) => {
-    if (!file.type.startsWith("video/")) {
-      toast({
-        title: "Invalid file type",
-        description: "Please upload a video file",
-        variant: "destructive"
+  const convertMovToMp4 = async (file: File): Promise<{ file: File, url: string }> => {
+    try {
+      // Keep the original MIME type for MOV files
+      const url = URL.createObjectURL(file);
+      
+      // Validate that the video is playable
+      await new Promise<void>((resolve, reject) => {
+        const video = document.createElement('video');
+        video.preload = 'metadata';
+        
+        const cleanup = () => {
+          video.removeEventListener('loadedmetadata', handleLoad);
+          video.removeEventListener('error', handleError);
+        };
+
+        const handleLoad = () => {
+          cleanup();
+          if (video.videoWidth > 0 && video.videoHeight > 0) {
+            resolve();
+          } else {
+            reject(new Error('Invalid video dimensions'));
+          }
+        };
+
+        const handleError = () => {
+          cleanup();
+          reject(new Error('Failed to load video'));
+        };
+
+        video.addEventListener('loadedmetadata', handleLoad);
+        video.addEventListener('error', handleError);
+        video.src = url;
       });
-      return;
+
+      return { 
+        file: file,  // Keep the original file
+        url: url 
+      };
+    } catch (error) {
+      console.error('Error processing video:', error);
+      throw new Error('Failed to process video');
+    }
+  };
+
+  const validateVideo = (url: string) => {
+    console.log('🟡 Starting video validation');
+    return new Promise<void>((resolve, reject) => {
+      const video = document.createElement('video');
+      video.preload = 'metadata';
+      
+      video.onloadedmetadata = () => {
+        console.log('🟢 Video metadata loaded:', {
+          width: video.videoWidth,
+          height: video.videoHeight,
+          duration: video.duration,
+          readyState: video.readyState
+        });
+        
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+          console.log('🔴 Invalid video dimensions');
+          reject(new Error('Invalid video dimensions'));
+          return;
+        }
+        console.log('🟢 Video dimensions are valid');
+        resolve();
+      };
+
+      video.onerror = (e) => {
+        console.log('🔴 Video validation error:', e);
+        reject(new Error('Failed to load video'));
+      };
+
+      console.log('🟡 Setting video source:', url);
+      video.src = url;
+    });
+  };
+
+  const handleFileSelection = async (file: File) => {
+    console.log('🟢 handleFileSelection called with file:', {
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
+
+    // Clean up previous preview URL if it exists
+    if (previewUrl) {
+      URL.revokeObjectURL(previewUrl);
     }
 
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-    onVideoSelected(file, url);
+    try {
+      console.log('🟡 Checking file type validity');
+      const actualType = file.type;
+      const isValidType = VALID_VIDEO_TYPES.includes(actualType);
+      
+      console.log('🟡 MIME type check:', { actualType, isValid: isValidType });
+      
+      if (!isValidType) {
+        throw new Error(`Invalid file type: ${actualType}`);
+      }
+
+      console.log('🟢 File type is valid, proceeding with upload');
+
+      let fileToUse = file;
+      let url: string;
+
+      // Convert MOV files using the proper conversion function
+      if (file.name.toLowerCase().endsWith('.mov')) {
+        console.log('🟡 Converting MOV file to MP4...');
+        const converted = await convertMovToMp4(file);
+        fileToUse = converted.file;
+        url = converted.url;
+        console.log('🟢 Successfully converted MOV to MP4');
+      } else {
+        url = URL.createObjectURL(file);
+      }
+      
+      console.log('🟢 Created object URL:', url);
+
+      // Validate the video before setting it
+      await validateVideo(url);
+      console.log('🟢 Video validation successful');
+
+      setPreviewUrl(url);
+      setSelectedFile(fileToUse);
+      setError(null);
+
+      if (onVideoSelected) {
+        onVideoSelected(fileToUse, url);
+      }
+    } catch (err) {
+      console.error('🔴 Error handling file selection:', err);
+      setError(err instanceof Error ? err.message : 'Unknown error occurred');
+      setPreviewUrl(null);
+      setSelectedFile(null);
+      toast({
+        title: "Error loading video",
+        description: err instanceof Error ? err.message : "Failed to load video file",
+        variant: "destructive"
+      });
+    }
   };
 
   const startRecording = async () => {
@@ -91,7 +239,7 @@ const VideoUpload = ({
         setPreviewUrl(url);
         
         const file = new File([blob], "recorded-video.webm", { type: 'video/webm' });
-        onVideoSelected(file, url);
+        handleFileSelection(file);
         
         if (streamRef.current) {
           streamRef.current.getTracks().forEach(track => track.stop());
@@ -130,18 +278,21 @@ const VideoUpload = ({
 
   return (
     <Card className={`overflow-hidden transition-all duration-300 ${className}`}>
-      <div className="relative">
+      <div className="relative min-h-[300px]">
         {previewUrl ? (
-          <div className="relative">
-            <video 
-              src={previewUrl} 
-              controls 
-              className="w-full h-full object-contain max-h-[400px]"
+          <div className="relative w-full">
+            <VideoPlayer
+              src={previewUrl}
+              className="w-full max-h-[400px]"
+              muted={false}
+              controls={true}
+              autoPlay={false}
+              loop={true}
             />
             <Button
               size="icon"
               variant="destructive"
-              className="absolute top-2 right-2 rounded-full"
+              className="absolute top-2 right-2 rounded-full z-10"
               onClick={clearVideo}
             >
               <X className="h-4 w-4" />
@@ -149,7 +300,7 @@ const VideoUpload = ({
           </div>
         ) : (
           <div
-            className={`flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg transition-colors ${
+            className={`flex flex-col items-center justify-center p-8 text-center border-2 border-dashed rounded-lg transition-colors min-h-[300px] ${
               dragActive 
                 ? "border-primary bg-primary/5" 
                 : "border-muted"
@@ -160,7 +311,7 @@ const VideoUpload = ({
             onDrop={handleDrop}
           >
             {isRecording ? (
-              <div className="relative">
+              <div className="relative w-full">
                 <video 
                   ref={videoRef} 
                   className="w-full max-h-[400px] rounded-lg"
@@ -228,8 +379,12 @@ const VideoUpload = ({
           accept="video/*"
           className="hidden"
           onChange={(e) => {
+            console.log('🟢 File input onChange triggered');
             if (e.target.files && e.target.files[0]) {
+              console.log('🟢 File selected:', e.target.files[0].name);
               handleFileSelection(e.target.files[0]);
+            } else {
+              console.log('🔴 No file selected');
             }
           }}
         />
