@@ -12,10 +12,10 @@ import NotFound from "./pages/NotFound";
 import Upload from "./pages/Upload";
 
 const queryClient = new QueryClient();
-
 function AuthenticatedApp() {
   const { currentUser, logout } = useAuth();
 
+  
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
