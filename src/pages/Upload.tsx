@@ -29,14 +29,30 @@ const Upload = () => {
     setStep(4);
   };
 
-  const handleUserSelectionComplete = (selection: { x: number, y: number, width: number, height: number }) => {
-    setUserVideo({ selection });
+  const handleUserSelectionComplete = (selection: { x: number, y: number, width: number, height: number, videoUrl: string }) => {
+    console.log('🎯 User selection complete handler called:', selection);
+    
+    // Update state and step in a single batch
+    setUserVideo({
+      ...userVideo,
+      selection
+    });
+    console.log('📝 Setting step to 3');
     setStep(3);
+    console.log('✅ Step should now be 3');
   };
 
-  const handleReferenceSelectionComplete = (selection: { x: number, y: number, width: number, height: number }) => {
-    setReferenceVideo({ selection });
+  const handleReferenceSelectionComplete = (selection: { x: number, y: number, width: number, height: number, videoUrl: string }) => {
+    console.log('🎯 Reference selection complete handler called:', selection);
+    
+    // Update state and step in a single batch
+    setReferenceVideo({
+      ...referenceVideo,
+      selection
+    });
+    console.log('📝 Setting step to 5');
     setStep(5);
+    console.log('✅ Step should now be 5');
   };
 
   const goToAnalysis = () => {

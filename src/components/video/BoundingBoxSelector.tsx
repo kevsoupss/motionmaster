@@ -3,13 +3,19 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Check, RotateCcw } from "lucide-react";
 import VideoPlayer from "./VideoPlayer";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
+import { ref, uploadString } from 'firebase/storage';
+import { storage } from "@/lib/firebase";
 
 interface BoundingBoxSelectorProps {
   videoUrl: string;
-  onSelectionComplete: (selection: { x: number, y: number, width: number, height: number }) => void;
+  onSelectionComplete: (selection: { x: number, y: number, width: number, height: number, videoUrl: string }) => void;
 }
 
 const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelectorProps) => {
+  const { currentUser } = useAuth();
+  const { toast } = useToast();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -177,6 +183,7 @@ const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelec
     e.stopPropagation();
     if (!isDrawing) return;
     
+    console.log('🖱️ Mouse/Touch End Event');
     setIsDrawing(false);
     const point = getCanvasPoint('changedTouches' in e ? e.changedTouches[0] : e.nativeEvent);
     
@@ -188,17 +195,21 @@ const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelec
       const y = Math.min(startPoint.y, point.y);
       const selection = { x, y, width, height };
       
+      console.log('📦 Setting selection state:', selection);
+      setSelection(selection);
+      
       // Log the selection dimensions
-      console.log('📦 Bounding Box Selected:', {
+      console.log('📏 Bounding Box Dimensions:', {
         x: Math.round(x),
         y: Math.round(y),
         width: Math.round(width),
         height: Math.round(height),
         aspectRatio: (width / height).toFixed(2),
-        area: Math.round(width * height)
+        area: Math.round(width * height),
+        videoUrl
       });
-      
-      setSelection(selection);
+    } else {
+      console.log('📦 Selection too small, minimum size is 20x20');
     }
   };
 
@@ -212,19 +223,119 @@ const BoundingBoxSelector = ({ videoUrl, onSelectionComplete }: BoundingBoxSelec
     }
   };
 
-  const confirmSelection = () => {
-    if (selection) {
-      // Log the confirmed selection
-      console.log('✅ Selection Confirmed:', {
-        x: Math.round(selection.x),
-        y: Math.round(selection.y),
-        width: Math.round(selection.width),
-        height: Math.round(selection.height),
-        aspectRatio: (selection.width / selection.height).toFixed(2),
-        area: Math.round(selection.width * selection.height)
-      });
+  const saveSelectionToFirebase = async (selectionData: any) => {
+    if (!currentUser) {
+      console.log('❌ Storage skipped: No user logged in');
+      return;
+    }
+
+    try {
+      // Get a fresh token before saving
+      const token = await currentUser.getIdToken(true);
+      console.log('🔑 Got fresh token:', token.substring(0, 10) + '...');
+
+      console.log('🔄 Preparing data for storage...');
+      const dataToSave = {
+        ...selectionData,
+        userId: currentUser.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
       
-      onSelectionComplete(selection);
+      console.log('📦 Data to save:', dataToSave);
+      
+      // Create a unique path for this selection
+      const timestamp = Date.now();
+      const path = `selections/${currentUser.uid}/${timestamp}.json`;
+      console.log('🎯 Storage path:', path);
+      
+      // Create a reference to the file location
+      const storageRef = ref(storage, path);
+
+      // Convert data to JSON string and save
+      console.log('💾 Saving to Storage...');
+      const jsonData = JSON.stringify(dataToSave, null, 2);
+      await uploadString(storageRef, jsonData, 'raw', {
+        contentType: 'application/json',
+        customMetadata: {
+          userId: currentUser.uid,
+          timestamp: timestamp.toString()
+        }
+      });
+
+      console.log('✅ Successfully saved to Storage!');
+      console.log('🗄️ Full path:', path);
+      
+      toast({
+        title: "Selection saved",
+        description: "Your bounding box selection has been saved successfully.",
+      });
+    } catch (error: any) {
+      console.error('❌ Error saving to Storage:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        stack: error.stack
+      });
+
+      // More specific error handling
+      if (error.code === 'storage/unauthorized') {
+        console.log('🚫 Permission denied - check Storage rules');
+        toast({
+          title: "Permission Denied",
+          description: "You don't have permission to save selections. Please check your authentication status.",
+          variant: "destructive"
+        });
+      } else if (error.code === 'storage/unauthenticated') {
+        console.log('🔑 User not properly authenticated');
+        toast({
+          title: "Authentication Error",
+          description: "Please sign in again to save selections.",
+          variant: "destructive"
+        });
+      } else {
+        toast({
+          title: "Error",
+          description: `Failed to save selection: ${error.message}`,
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
+  const confirmSelection = () => {
+    console.log('🔄 Confirm Selection Called');
+    
+    if (!selection) {
+      console.log('❌ No selection to confirm');
+      return;
+    }
+
+    // Create the selection data object with rounded values
+    const selectionData = {
+      x: Math.round(selection.x),
+      y: Math.round(selection.y),
+      width: Math.round(selection.width),
+      height: Math.round(selection.height),
+      videoUrl
+    };
+
+    // Log the confirmed selection
+    console.log('✅ Selection Data to be sent:', selectionData);
+
+    console.log('🎯 Calling onSelectionComplete callback...');
+    // Call onSelectionComplete to move to next step
+    onSelectionComplete(selectionData);
+    console.log('✨ onSelectionComplete callback finished');
+
+    // Save to Firebase in the background
+    if (currentUser) {
+      console.log('🔄 Starting Firebase save...');
+      saveSelectionToFirebase(selectionData).catch(error => {
+        console.error('❌ Background save error:', error);
+      });
+    } else {
+      console.log('⚠️ Skipping Firebase save - no user logged in');
     }
   };
 

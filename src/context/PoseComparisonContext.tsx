@@ -3,7 +3,7 @@ import { createContext, useContext, useState, ReactNode, useEffect } from 'react
 interface VideoData {
   file: File | null;
   url: string;
-  selection: { x: number, y: number, width: number, height: number } | null;
+  selection: { x: number, y: number, width: number, height: number, videoUrl: string } | null;
 }
 
 interface AnalysisResults {
@@ -54,17 +54,27 @@ export const PoseComparisonProvider = ({ children }: { children: ReactNode }) =>
   const [analysisProgress, setAnalysisProgress] = useState(0);
 
   const setUserVideo = (data: Partial<VideoData>) => {
+    console.log('Setting user video:', data);
     if (userVideo.url && data.url && data.url !== userVideo.url) {
       URL.revokeObjectURL(userVideo.url);
     }
-    setUserVideoState(prev => ({ ...prev, ...data }));
+    setUserVideoState(prev => {
+      const newState = { ...prev, ...data };
+      console.log('New user video state:', newState);
+      return newState;
+    });
   };
 
   const setReferenceVideo = (data: Partial<VideoData>) => {
+    console.log('Setting reference video:', data);
     if (referenceVideo.url && data.url && data.url !== referenceVideo.url) {
       URL.revokeObjectURL(referenceVideo.url);
     }
-    setReferenceVideoState(prev => ({ ...prev, ...data }));
+    setReferenceVideoState(prev => {
+      const newState = { ...prev, ...data };
+      console.log('New reference video state:', newState);
+      return newState;
+    });
   };
 
   const startAnalysis = () => {
