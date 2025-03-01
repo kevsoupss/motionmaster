@@ -1,73 +1,39 @@
+import { useAuth } from "@/contexts/AuthContext";
+import { Link } from "react-router-dom";
+import { Button } from "../ui/button";
 
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
-import { ChevronLeft, Save } from "lucide-react";
-
-interface HeaderProps {
-  showBackButton?: boolean;
-  showSaveButton?: boolean;
-  title?: string;
-  onSave?: () => void;
-}
-
-const Header = ({ 
-  showBackButton = false, 
-  showSaveButton = false, 
-  title = "Pose Matchup Mentor", 
-  onSave 
-}: HeaderProps) => {
-  const navigate = useNavigate();
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (onSave) {
-      setSaving(true);
-      await onSave();
-      setSaving(false);
-    }
-  };
+export default function Header() {
+  const { currentUser, logout } = useAuth();
 
   return (
-    <motion.header 
-      className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border"
-      initial={{ opacity: 0, y: -10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3 }}
-    >
-      <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {showBackButton && (
-            <Button 
-              variant="ghost" 
-              size="icon" 
-              onClick={() => navigate(-1)} 
-              className="mr-2"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-          )}
-          <h1 className="text-xl font-medium">{title}</h1>
-        </div>
-        {showSaveButton && (
-          <Button 
-            onClick={handleSave} 
-            disabled={saving}
-            className="relative overflow-hidden"
-          >
-            <span className="flex items-center gap-2">
-              <Save className="h-4 w-4" />
-              {saving ? 'Saving...' : 'Save Progress'}
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center">
+        <div className="mr-4 hidden md:flex">
+          <Link to="/" className="mr-6 flex items-center space-x-2">
+            <span className="hidden font-bold sm:inline-block">
+              MotionMaster
             </span>
-            {saving && (
-              <span className="absolute inset-0 bg-primary/10 animate-shimmer"></span>
-            )}
-          </Button>
-        )}
+          </Link>
+          <nav className="flex items-center space-x-6 text-sm font-medium">
+            <Link
+              to="/upload"
+              className="transition-colors hover:text-foreground/80 text-foreground/60"
+            >
+              Upload
+            </Link>
+          </nav>
+        </div>
+        <div className="flex flex-1 items-center justify-between space-x-2 md:justify-end">
+          <div className="w-full flex-1 md:w-auto md:flex-none">
+          </div>
+          <nav className="flex items-center">
+            <span className="mr-4">{currentUser?.email}</span>
+            <Button variant="outline" onClick={logout}>
+              Logout
+            </Button>
+          </nav>
+        </div>
       </div>
-    </motion.header>
+    </header>
   );
-};
-
-export default Header;
+}

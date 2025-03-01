@@ -1,13 +1,12 @@
-
-import { useState } from "react";
-import { Button } from "@/components/ui/button";
 import PageContainer from "@/components/layout/PageContainer";
-import VideoUpload from "@/components/video/VideoUpload";
+import { Button } from "@/components/ui/button";
 import BoundingBoxSelector from "@/components/video/BoundingBoxSelector";
-import { ChevronRight, ChevronLeft } from "lucide-react";
+import VideoUpload from "@/components/video/VideoUpload";
 import { usePoseComparison } from "@/context/PoseComparisonContext";
-import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { ChevronLeft, ChevronRight } from "lucide-react";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 const Upload = () => {
   const [step, setStep] = useState(1);
