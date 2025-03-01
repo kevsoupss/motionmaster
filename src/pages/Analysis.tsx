@@ -78,7 +78,7 @@ const Analysis = () => {
           
           {!isAnalyzing && (
             <>
-              <div className="mt-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="mt-8 grid grid-cols-1 lg:grid-cols-1 gap-6">
                 <motion.div
                   className="col-span-full lg:col-span-2"
                   initial={{ opacity: 0, y: 20 }}
@@ -86,7 +86,7 @@ const Analysis = () => {
                   transition={{ duration: 0.5, delay: 0.2 }}
                 >
                   <h2 className="text-2xl font-semibold mb-4">What's Next?</h2>
-                  <div className="prose prose-sm max-w-none">
+                  <div className="prose prose-sm w-full">
                     <p>
                       Now that you've received feedback on your technique, here are some steps you can take:
                     </p>
@@ -110,29 +110,6 @@ const Analysis = () => {
                     <Button variant="outline" onClick={() => navigate("/")}>
                       Back to Home
                     </Button>
-                  </div>
-                </motion.div>
-                
-                <motion.div
-                  className="col-span-full lg:col-span-1"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5, delay: 0.3 }}
-                >
-                  <h2 className="text-2xl font-semibold mb-4">Resources</h2>
-                  <div className="bg-muted rounded-lg p-4 space-y-4">
-                    <div className="group">
-                      <h3 className="font-medium mb-1 group-hover:text-primary transition-colors">Training Programs</h3>
-                      <p className="text-sm text-muted-foreground">Access structured programs to improve your technique</p>
-                    </div>
-                    <div className="group">
-                      <h3 className="font-medium mb-1 group-hover:text-primary transition-colors">Professional Coaching</h3>
-                      <p className="text-sm text-muted-foreground">Connect with coaches who can provide personalized guidance</p>
-                    </div>
-                    <div className="group">
-                      <h3 className="font-medium mb-1 group-hover:text-primary transition-colors">Performance Analytics</h3>
-                      <p className="text-sm text-muted-foreground">Track your progress and improvements over time</p>
-                    </div>
                   </div>
                 </motion.div>
               </div>

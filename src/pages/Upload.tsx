@@ -8,16 +8,89 @@ import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
+import { ref, uploadString } from 'firebase/storage';
+import { storage } from "@/lib/firebase";
 
 const Upload = () => {
   const [step, setStep] = useState(1);
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
+  const { toast } = useToast();
   const {
     userVideo,
     referenceVideo,
     setUserVideo,
     setReferenceVideo
   } = usePoseComparison();
+
+  const saveSelectionsToFirebase = async () => {
+    if (!currentUser || !userVideo.selection || !referenceVideo.selection) {
+      console.log('❌ Storage skipped: Missing user or selections');
+      return;
+    }
+
+    try {
+      // Get a fresh token before saving
+      const token = await currentUser.getIdToken(true);
+      console.log('🔑 Got fresh token:', token.substring(0, 10) + '...');
+
+      console.log('🔄 Preparing data for storage...');
+      const dataToSave = {
+        userId: currentUser.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        userVideo: {
+          ...userVideo.selection,
+          videoUrl: userVideo.url,
+          timestamp: Date.now()
+        },
+        referenceVideo: {
+          ...referenceVideo.selection,
+          videoUrl: referenceVideo.url,
+          timestamp: Date.now()
+        }
+      };
+      
+      console.log('📦 Data to save:', dataToSave);
+      
+      // Create a unique path for this selection pair
+      const timestamp = Date.now();
+      const path = `selections/${currentUser.uid}/comparison_${timestamp}.json`;
+      console.log('🎯 Storage path:', path);
+      
+      // Create a reference to the file location
+      const storageRef = ref(storage, path);
+
+      // Convert data to JSON string and save
+      console.log('💾 Saving to Storage...');
+      const jsonData = JSON.stringify(dataToSave, null, 2);
+      await uploadString(storageRef, jsonData, 'raw', {
+        contentType: 'application/json',
+        customMetadata: {
+          userId: currentUser.uid,
+          timestamp: timestamp.toString(),
+          isComplete: 'true'
+        }
+      });
+
+      console.log('✅ Successfully saved to Storage!');
+      console.log('🗄️ Full path:', path);
+      
+      toast({
+        title: "Selections saved",
+        description: "Both video selections have been saved successfully.",
+      });
+    } catch (error: any) {
+      console.error('❌ Error saving to Storage:', error);
+      toast({
+        title: "Error",
+        description: `Failed to save selections: ${error.message}`,
+        variant: "destructive"
+      });
+    }
+  };
 
   const handleUserVideoSelected = (file: File, url: string) => {
     setUserVideo({ file, url });
@@ -53,6 +126,9 @@ const Upload = () => {
     console.log('📝 Setting step to 5');
     setStep(5);
     console.log('✅ Step should now be 5');
+    
+    // Save both selections after step 5
+    saveSelectionsToFirebase();
   };
 
   const goToAnalysis = () => {
