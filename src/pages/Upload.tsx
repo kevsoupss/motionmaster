@@ -6,11 +6,11 @@ import VideoPlayer from "@/components/video/VideoPlayer";
 import { usePoseComparison } from "@/context/PoseComparisonContext";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
-import { ref, uploadString } from 'firebase/storage';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from "@/lib/firebase";
 
 const Upload = () => {
@@ -43,12 +43,14 @@ const Upload = () => {
         updatedAt: new Date().toISOString(),
         userVideo: {
           ...userVideo.selection,
-          videoUrl: userVideo.url,
+          filePath: `videos/${currentUser.uid}/${userVideo.file.name}`,
+          publicUrl: userVideo.url,
           timestamp: Date.now()
         },
         referenceVideo: {
           ...referenceVideo.selection,
-          videoUrl: referenceVideo.url,
+          filePath: `videos/${currentUser.uid}/${referenceVideo.file.name}`,
+          publicUrl: referenceVideo.url,
           timestamp: Date.now()
         }
       };
@@ -63,10 +65,8 @@ const Upload = () => {
       // Create a reference to the file location
       const storageRef = ref(storage, path);
 
-      // Convert data to JSON string and save
-      console.log('💾 Saving to Storage...');
-      const jsonData = JSON.stringify(dataToSave, null, 2);
-      await uploadString(storageRef, jsonData, 'raw', {
+      // Save the data as a JSON file
+      await uploadBytes(storageRef, new Blob([JSON.stringify(dataToSave, null, 2)]), {
         contentType: 'application/json',
         customMetadata: {
           userId: currentUser.uid,
@@ -92,14 +92,56 @@ const Upload = () => {
     }
   };
 
-  const handleUserVideoSelected = (file: File, url: string) => {
-    setUserVideo({ file, url });
-    setStep(2);
+  const handleUserVideoSelected = async (file: File, url: string) => {
+    try {
+      // Create a reference to the storage location
+      const timestamp = Date.now();
+      const fileName = `${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `videos/${currentUser?.uid}/${fileName}`);
+      
+      // Upload the file
+      await uploadBytes(storageRef, file);
+      
+      // Get the public URL
+      const publicUrl = await getDownloadURL(storageRef);
+      
+      // Update state with the Firebase Storage URL
+      setUserVideo({ file: { ...file, name: fileName }, url: publicUrl });
+      setStep(2);
+    } catch (error: any) {
+      console.error('❌ Error uploading video:', error);
+      toast({
+        title: "Error",
+        description: `Failed to upload video: ${error.message}`,
+        variant: "destructive"
+      });
+    }
   };
 
-  const handleReferenceVideoSelected = (file: File, url: string) => {
-    setReferenceVideo({ file, url });
-    setStep(4);
+  const handleReferenceVideoSelected = async (file: File, url: string) => {
+    try {
+      // Create a reference to the storage location
+      const timestamp = Date.now();
+      const fileName = `${timestamp}_${file.name}`;
+      const storageRef = ref(storage, `videos/${currentUser?.uid}/${fileName}`);
+      
+      // Upload the file
+      await uploadBytes(storageRef, file);
+      
+      // Get the public URL
+      const publicUrl = await getDownloadURL(storageRef);
+      
+      // Update state with the Firebase Storage URL
+      setReferenceVideo({ file: { ...file, name: fileName }, url: publicUrl });
+      setStep(4);
+    } catch (error: any) {
+      console.error('❌ Error uploading video:', error);
+      toast({
+        title: "Error",
+        description: `Failed to upload video: ${error.message}`,
+        variant: "destructive"
+      });
+    }
   };
 
   const handleUserSelectionComplete = (selection: { x: number, y: number, width: number, height: number, videoUrl: string }) => {
@@ -126,13 +168,32 @@ const Upload = () => {
     console.log('📝 Setting step to 5');
     setStep(5);
     console.log('✅ Step should now be 5');
-    
-    // Save both selections after step 5
-    saveSelectionsToFirebase();
   };
 
-  const goToAnalysis = () => {
-    navigate("/analysis");
+  const goToAnalysis = async () => {
+    if (!currentUser || !userVideo.selection || !referenceVideo.selection) {
+      console.log('❌ Cannot proceed: Missing user or selections');
+      toast({
+        title: "Error",
+        description: "Missing required data to proceed with analysis",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      console.log('🔄 Saving selections before analysis...');
+      await saveSelectionsToFirebase();
+      console.log('✅ Selections saved successfully');
+      navigate("/analysis");
+    } catch (error) {
+      console.error('❌ Failed to save selections:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save selections. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
   const canProceedToStep2 = !!userVideo.url;
@@ -284,7 +345,7 @@ const Upload = () => {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Your Performance</p>
                 <div className="rounded-lg border bg-card">
-                  <div className="aspect-video">
+                  <div className="aspect-video relative">
                     {userVideo.url && (
                       <VideoPlayer
                         src={userVideo.url}
@@ -298,7 +359,7 @@ const Upload = () => {
               <div className="space-y-2">
                 <p className="text-sm font-medium">Reference Performance</p>
                 <div className="rounded-lg border bg-card">
-                  <div className="aspect-video">
+                  <div className="aspect-video relative">
                     {referenceVideo.url && (
                       <VideoPlayer
                         src={referenceVideo.url}
