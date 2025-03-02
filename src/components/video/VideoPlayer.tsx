@@ -15,7 +15,7 @@ const VideoPlayer = ({
   src,
   className = "",
   autoPlay = false,
-  loop = true,
+  loop = false,
   muted = false,
   controls = true,
   id,
@@ -27,16 +27,13 @@ const VideoPlayer = ({
     const video = videoRef.current;
     if (!video) return;
 
-    // Only set source if it's changed
     if (video.src !== src) {
       video.src = src;
       video.load();
     }
-    
-    video.muted = muted;
 
     const handleCanPlay = () => {
-      onLoad?.();
+      if (onLoad) onLoad();
     };
 
     video.addEventListener('canplay', handleCanPlay);
@@ -44,24 +41,18 @@ const VideoPlayer = ({
     return () => {
       video.removeEventListener('canplay', handleCanPlay);
     };
-  }, [src, muted, onLoad]);
+  }, [src, onLoad]);
 
   return (
-    <div className="relative w-full min-h-[300px] bg-white">
+    <div className="w-full h-full">
       <video
         ref={videoRef}
-        className={`w-full h-full ${className}`}
-        style={{
-          objectFit: 'contain',
-          minHeight: '300px',
-          backgroundColor: 'white',
-        }}
+        className={`w-full h-full object-contain ${className}`}
         autoPlay={autoPlay}
         loop={loop}
         muted={muted}
         controls={controls}
         playsInline
-        preload="auto"
         id={id}
       />
     </div>
