@@ -26,3 +26,11 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+backend/src/__pycache__/
+backend/src/.venv/
+backend/src/output/
+backend/src/requirements.txt
+backend/src/s.txt
+backend/src/serviceAccountKey.json
+backend/src/world_landmarks.json
